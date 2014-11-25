@@ -1,0 +1,18 @@
+
+DeclKey{
+X= KEY_DRAW;
+}
+
+Alphabet{
+F,X;
+}
+
+Axiom{
+X;
+}
+
+Rules
+{
+X=F-[[X]+X]+F[+FX]-X;
+F=FF;
+}
