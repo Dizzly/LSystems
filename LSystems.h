@@ -6,7 +6,18 @@
 //
 
 
-class LSystemVisualizer
+
+class DrawHelper
+{
+public:
+
+private:
+    float lineLength_;
+    float rotationAmount_;
+};
+
+
+class LSystem
 { //make these variables private
 public:
     enum KEY_SYMBOLS{
@@ -25,20 +36,45 @@ public:
     class LSystemState
     {
     public:
-        LSystemState(LSystemState* prev = NULL) : readIndex(0), prevState(prev)
+        LSystemState(LSystemState* prev = NULL) : readIndex(0), prevState(prev),level(0)
         {
-            prevState = prev;
+
         }
         ~LSystemState(){}
 
+        LSystemState(const LSystemState& cpy)
+        {
+            readIndex = cpy.readIndex;
+            level = cpy.level;
+            prevState = cpy.prevState;
+            userPointer = cpy.userPointer;
+            state_.resize(cpy.state_.size());
+            memcpy(state_.data(), cpy.state_.data(), cpy.state_.size());
+        }
+
+        void operator =(const LSystemState& cpy)
+        {
+            readIndex = cpy.readIndex;
+            level = cpy.level;
+            prevState = cpy.prevState;
+            userPointer = cpy.userPointer;
+            state_.resize(0);
+            state_.resize(cpy.state_.size());
+            memcpy(state_.data(), cpy.state_.data(), cpy.state_.size());
+        }
+
         int readIndex;
-        const LSystemState *prevState;
+        int level;
+        const LSystemState* prevState;
         octet::dynarray<char> state_;
+
+        static void* userPointer;
     };
     typedef bool(*VarFunc)(LSystemState*);
 public:
-    LSystemVisualizer(){}
-    ~LSystemVisualizer(){}
+    LSystem(){}
+    ~LSystem(){}
+
     void Iterate(int n)
     {
         for (int i = 0; i < n; ++i)
@@ -46,18 +82,36 @@ public:
             Iterate();
         }
     }
-
     void Iterate()
     {
-        assert(states_.size()>0);
-        states_.push_back(LSystemState(&states_.back()));
-        const LSystemState* prevState = states_.back().prevState;
+        assert(stateVec_.size()>0);
+        stateVec_.push_back(new LSystemState(stateVec_.back()));
+        stateVec_.back()->level = stateVec_.size();
+        const LSystemState* prevState = stateVec_.back()->prevState;
         assert(prevState->state_.size() > 0);
         for (int i = 0; i < prevState->state_.size(); ++i)
         {
-            states_.back().readIndex = i;
+            stateVec_.back()->readIndex = i;
             ProcessSymbol(prevState->state_[i]);
         }
+    }
+
+    void Decrement(int n){
+        for (int i = 0; i < n; ++i)
+        {
+            Decrement();
+        }
+    }
+    void Decrement()
+    {
+        stateVec_.pop_back();
+    }
+
+    void Collapse()
+    {
+        *stateVec_.data()=stateVec_.back();
+        stateVec_.resize(1);
+        stateVec_.back()->prevState = nullptr;
     }
 
     void AddAlphabetSymbol(char symb)
@@ -66,10 +120,15 @@ public:
     }
     void SetAxiom(const char* c, int size)
     {
-        axiom_.resize(size);
-        memcpy(axiom_.data(), c, size);
-        states_.push_back(LSystemState());
-        states_.back().state_ = axiom_;
+        assert(stateVec_.size() == 0);
+        if (stateVec_.size() == 0)
+        {
+            axiom_.resize(size);
+            memcpy(axiom_.data(), c, size);
+            stateVec_.push_back(new LSystemState());
+            stateVec_.back()->state_ = axiom_;
+            stateVec_.back()->level = 1;
+        }
     }
 
     void AddBasicRules(char c, octet::string& str)
@@ -81,29 +140,36 @@ public:
         varFuncs_[c] = func;
     }
 
-    const LSystemState& GetCurrentState()
+    const LSystemState* GetCurrentState()
     {
-        return states_.back();
+        return stateVec_.back();
     }
 private:
     void ProcessSymbol(const char c)
     {
-        LSystemState* state = &states_.back();
+        LSystemState* state = stateVec_.back();
         if (simpleRules_.get_index(c) !=-1)
         {
             const octet::string& str = simpleRules_.get_value(
                 simpleRules_.get_index(c));
 
-            for (int i = 0; i < str.size(); ++i)
+            if (state->state_.size() > 0)
             {
-                states_.back().state_.push_back(str[i]);
+                int oldSize = state->state_.size();
+                state->state_.resize(state->state_.size() + str.size());
+                memcpy(state->state_.data()+oldSize, str.c_str(), str.size());
+            }
+            else
+            {
+                state->state_.resize(str.size());
+                memcpy(state->state_.data(), str.c_str(), str.size());
             }
         }
         else if(varFuncs_.get_index(c)!=-1)
         {
             VarFunc v = varFuncs_.get_value(
                 varFuncs_.get_index(c));
-            v(&states_.back());
+            v(stateVec_.back());
         }
         else
         {
@@ -112,7 +178,7 @@ private:
         
     }
 private:
-    octet::dynarray<LSystemState> states_;
+    octet::dynarray<LSystemState*> stateVec_;
 
     octet::hash_map<char,octet::string> simpleRules_;
     octet::hash_map<char,VarFunc> varFuncs_;
@@ -130,7 +196,7 @@ public:
     LSystemImporter(){}
     ~LSystemImporter(){}
 
-    bool Load(LSystemVisualizer* lSys,const octet::string& filename)
+    bool Load(LSystem* lSys,const octet::string& filename)
     {
         std::fstream file;
 
@@ -165,7 +231,7 @@ public:
     }
     //load the symbol alphabet from the text file containing all non-inbuilt symbols in the L system
     //a local version is stored for error checking in the Axiom and Rule sections
-    bool LoadAlphabet(LSystemVisualizer* lSys,octet::string& str)
+    bool LoadAlphabet(LSystem* lSys,octet::string& str)
     {
         int startLoc = str.find("Alphabet");
         
@@ -199,7 +265,7 @@ public:
 
     //load the axiom, fairly simple, find the first string and load all of it
     //grammer inside the axiom will be ignored, but it will complain
-    bool LoadAxiom(LSystemVisualizer* lSys, octet::string& str)
+    bool LoadAxiom(LSystem* lSys, octet::string& str)
     {
         int startLoc = str.find("Axiom");
         
@@ -255,7 +321,7 @@ public:
 
     //loads the simple symbol replacement rules
     //will only read single chracter replacements ie(F=FF is fine, FF=FF not ok(read as F=FF))
-    bool LoadRules(LSystemVisualizer* lSys, octet::string& str)
+    bool LoadRules(LSystem* lSys, octet::string& str)
     {
         int startLoc = str.find("Rules");
         if (startLoc == -1)
@@ -304,16 +370,16 @@ public:
 
     //loads any special key replacements, by default +,-,[,],F are reserved for special use
     //Any of these can be overloaded with their own custom symbol
-    bool LoadKeyDeclerations(LSystemVisualizer* lSys, octet::string& str)
+    bool LoadKeyDeclerations(LSystem* lSys, octet::string& str)
     {
 
         int startLoc = str.find("KeyDecl");
       
-        keys_[LSystemVisualizer::KEY_DRAW] = 'F';
-        keys_[LSystemVisualizer::KEY_PUSH] = '[';
-        keys_[LSystemVisualizer::KEY_POP] = ']';
-        keys_[LSystemVisualizer::KEY_PLUS_ROTATE] = '+';
-        keys_[LSystemVisualizer::KEY_MINUS_ROTATE] = '-';
+        keys_[LSystem::KEY_DRAW] = 'F';
+        keys_[LSystem::KEY_PUSH] = '[';
+        keys_[LSystem::KEY_POP] = ']';
+        keys_[LSystem::KEY_PLUS_ROTATE] = '+';
+        keys_[LSystem::KEY_MINUS_ROTATE] = '-';
 
         if (startLoc == -1)
         {
@@ -375,33 +441,33 @@ private:
     {
         if (c == "KEY_DRAW")
         {
-            return LSystemVisualizer::KEY_DRAW;
+            return LSystem::KEY_DRAW;
         }
         if (c == "KEY_PLUS_ROTATE")
         {
-            return LSystemVisualizer::KEY_PLUS_ROTATE;
+            return LSystem::KEY_PLUS_ROTATE;
         }
         if (c == "KEY_MINUS_ROTATE")
         {
-            return LSystemVisualizer::KEY_MINUS_ROTATE;
+            return LSystem::KEY_MINUS_ROTATE;
         }
         if (c == "KEY_PUSH")
         {
-            return LSystemVisualizer::KEY_PUSH;
+            return LSystem::KEY_PUSH;
         }
         if (c == "KEY_POP")
         {
-            return LSystemVisualizer::KEY_POP;
+            return LSystem::KEY_POP;
         }
         /*
         //Possible extension of features
         if (c == "KEY_LEAF")
         {
-            return LSystemVisualizer::KEY_LEAF;
+            return LSystem::KEY_LEAF;
         }
         if (c == "KEY_ROTATE")
         {
-            return LSystemVisualizer::KEY_ROTATE;
+            return LSystem::KEY_ROTATE;
         }
         */
         return -1;
@@ -479,8 +545,8 @@ namespace octet {
 
 
         LSystemImporter import;
-        LSystemVisualizer visi;
-        const LSystemVisualizer::LSystemState* s;
+        LSystem visi;
+        const LSystem::LSystemState* s;
     public:
         /// this is called when we construct the class before everything is initialised.
         LSystems(int argc, char **argv) : app(argc, argv) {
@@ -492,11 +558,23 @@ namespace octet {
             app_scene->create_default_camera_and_lights();
             
             import.Load(&visi, "LSys.txt");
+            
+            
             struct myVertex{
                 myVertex(vec3 p, uint32_t c) :pos(p),color(c){}
                 vec3p pos;
                 uint32_t color;
             };
+
+            
+
+            bool breakpoint = true;
+            visi.Iterate(6);
+            s = visi.GetCurrentState();
+            breakpoint = true;
+
+            visi.Collapse();
+            s = visi.GetCurrentState();
 
             mesh* meshy = new mesh();
             meshy->allocate(sizeof(myVertex)* 16000, 0);
@@ -505,25 +583,19 @@ namespace octet {
             meshy->add_attribute(attribute_pos, 3, GL_FLOAT, 0);
             meshy->add_attribute(attribute_color, 4, GL_UNSIGNED_BYTE, 12, TRUE);
 
-            visi.Iterate();
-            s = &visi.GetCurrentState();
-            bool breakpoint = true;
-            visi.Iterate(4);
-            s = &visi.GetCurrentState();
-            breakpoint = true;
-
             gl_resource::wolock vl(meshy->get_vertices());
             myVertex* vtx = (myVertex*)vl.u8();
 
             vec4 dir(0, 0.1, 0, 0);
             dynarray<mat4t> stack;
             stack.push_back(mat4t());
+
             for (int i = 0; i < s->state_.size(); ++i)
             {
                 const char c = s->state_[i];
                 if (c == 'F')
                 {
-                    *vtx = myVertex(vec3(0, 0, -10) * stack.back(), 0xff + 255<< 0);
+                    *vtx = myVertex(vec3(0, 0, -10) * stack.back(), 0xff + 255<< 0);//creates a vertex
                     ++vtx;
                     stack.back().translate(0, 0.1,0);
                     *vtx = myVertex(vec3(0,0,-10) * stack.back(),0xff+255<<0);
@@ -546,7 +618,7 @@ namespace octet {
                     stack.pop_back();
                 }
             }
-            glLineWidth(1);
+            glLineWidth(0.1);
 
             param_shader* shader = new param_shader("shaders/default.vs", "shaders/simple_color.fs");
             mesh_instance *inst = new mesh_instance(new scene_node(), meshy, new material(vec4(1,0,0,1),
