@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
 
   // our application.
   octet::LSystems app(argc, argv);
-  app.init();
+  app.init(1920,1080);
 
   // open windows
   octet::app::run_all_apps();
