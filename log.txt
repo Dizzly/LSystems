@@ -1,0 +1,64 @@
+Fragment shader error:
+0(36) : warning C7502: OpenGL does not allow type suffix 'f' on constant literals in versions below 120
+0(38) : warning C7011: implicit cast from "int" to "float"
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//
+// default frament shader for solid colours
+//
+
+// constant parameters
+uniform vec4 lighting[68];
+uniform int num_lights;
+uniform vec4 diffuse;
+
+// inputs
+varying vec2 uv_;
+varying vec3 normal_;
+varying vec3 camera_pos_;
+varying vec4 color_;
+varying vec3 model_pos_;
+
+void main() {
+  vec3 nnormal = normalize(normal_);
+  vec3 npos = camera_pos_;
+  vec3 diffuse_light = vec3(0,0,0);
+  for (int i = 0; i != num_lights; ++i) {
+    vec3 light_pos = lighting[i * 4 + 1].xyz;
+    vec3 light_direction = lighting[i * 4 + 2].xyz;
+    vec3 light_color = lighting[i * 4 + 3].xyz;
+    vec3 light_atten = lighting[i * 4 + 4].xyz;
+    vec3 dir=light_pos-npos;
+    float dist=length(dir);
+    float diffuse_factor = max(dot(normalize(dir), nnormal), 0.0);
+
+
+    float att= 1.0/dot(light_atten,vec3(1.0,dist,dist*dist));
+
+   
+
+    float toonIntensity=0.0f;
+    if(diffuse_factor>0.95){
+        toonIntensity=1;}
+    else if (diffuse_factor > 0.5){
+        toonIntensity=0.7;}
+    else if (diffuse_factor > 0.05){
+        toonIntensity=0.35;}
+    else{
+        toonIntensity=0.1;}
+
+    diffuse_light +=   toonIntensity * light_color * att;
+  }
+  gl_FragColor = vec4(diffuse.xyz * diffuse_light, 1.0);
+
+}
+
+
+
+
+
+program errors
+Fragment info
+-------------
+0(36) : warning C7502: OpenGL does not allow type suffix 'f' on constant literals in versions below 120
+0(38) : warning C7011: implicit cast from "int" to "float"

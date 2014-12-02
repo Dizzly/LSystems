@@ -44,6 +44,8 @@ public:
     static void* userPointer;
 };
 
+class LSystemDrawInfo{}
+
 //an abstract base class for creation of a intergrated graphics tool, not necessary
 class LSystemVisualizer
 {
@@ -59,6 +61,8 @@ public:
     virtual void DrawLeaf(){};
     virtual void Rotate(){};
     virtual void Custom(){};
+
+    virtual void Finished(){};
 
     virtual void SetState(LSystemState* state) = 0{};
 };
@@ -101,10 +105,6 @@ public:
         stateVec_.back()->level = stateVec_.size();
         const LSystemState* prevState = stateVec_.back()->prevState;
         assert(prevState->state_.size() > 0);
-        if (visualizer_)
-        {
-            visualizer_->SetState(stateVec_.back());
-        }
         for (int i = 0; i < prevState->state_.size(); ++i)
         {
             stateVec_.back()->readIndex = i;
@@ -128,6 +128,19 @@ public:
         *stateVec_.data() = stateVec_.back();
         stateVec_.resize(1);
         stateVec_.back()->prevState = nullptr;
+    }
+
+    void Visualize(LSystemVisualizer* viz){
+        if (viz)
+        {
+            LSystemState* state=stateVec_.back();
+            viz->SetState(state);
+            for (int i = 0; i < state->state_.size(); ++i)
+            {
+                CallKey(referenceMap_[state->state_[i]].key,viz);
+            }
+            viz->Finished();
+        }
     }
 
     void AddAlphabetSymbol(char symb)
@@ -156,11 +169,6 @@ public:
     void SetKeyDecl(char c,KEY_SYMBOLS k)
     {
         referenceMap_[c].key = k;
-    }
-
-    void SetVisualizer(LSystemVisualizer* viz)
-    {
-        visualizer_ = viz;
     }
 
     void AddRuleFunction(char c, VarFunc func)
@@ -211,92 +219,46 @@ private:
         {
             r.func(state);
         }
-        if (r.key != KEY_NULL&&visualizer_)
-        {
-            CallKey(r.key);
-        }
     }
 
-    void CallKey(int key)
+    void CallKey(int key,LSystemVisualizer* viz)
     {
         switch (key)
         {
         case(KEY_DRAW) :
-            visualizer_->DrawLine();
+            viz->DrawLine();
             break;
         case(KEY_PLUS_ROTATE) :
-            visualizer_->RotatePositive();
+            viz->RotatePositive();
             break;
         case(KEY_MINUS_ROTATE) :
-            visualizer_->RotateNegative();
+            viz->RotateNegative();
             break;
         case(KEY_PUSH) :
-            visualizer_->PushStack();
+            viz->PushStack();
             break;
         case(KEY_POP) :
-            visualizer_->PopStack();
+            viz->PopStack();
             break;
         case(KEY_LEAF) :
-            visualizer_->DrawLeaf();
+            viz->DrawLeaf();
             break;
         case(KEY_ROTATE) :
-            visualizer_->Rotate();
+            viz->Rotate();
             break;
         case(KEY_CUSTOM) :
-            visualizer_->Custom();
+            viz->Custom();
             break;
         }
     }
 
 private:
-    LSystemVisualizer* visualizer_;
 
     octet::dynarray<LSystemState*> stateVec_;
     octet::hash_map<char, SymbolRef> referenceMap_;
     octet::dynarray<char> axiom_;
     octet::dynarray<char> alphabet_;
 };
-
-
-
-
-class DrawHelper: public LSystemVisualizer
-{
-public:
-    void DrawLine() override
-    {
-
-    }
-   void RotatePositive()override
-    {
-
-    }
-    void RotateNegative()override
-    {
-
-    }
-    void PushStack()override
-    {
-
-    }
-    void PopStack()override
-    {
-
-    }
-    void Custom()override
-    {
-       
-    }
-
-    void SetState(LSystemState* state)override
-    { }
-private:
-    float lineLength_;
-    octet::vec3 minRot_;
-    octet::vec3 maxRot_;
-};
-
-
 
 #include <fstream>
 //the importer kept seperate from the LSystem for reduction in function count and use
@@ -516,7 +478,7 @@ private:
                     LSystem::KEY_SYMBOLS keyNum = KeyFromString(key);
                     if (keyNum != LSystem::KEY_NULL)
                     {
-                        lSys->SetKeyDecl(newSymbol,keyNum);
+                        lSys->SetKeyDecl(newSymbol, keyNum);
                         i += key.size();
                     }
                     else
@@ -527,6 +489,7 @@ private:
                 else
                 {
                     printf("%s%c%s\n", "Malformed KeyDecl assignment, ", newSymbol, " is grammer");
+                   
                 }
             }//END OF READ IF
         }//END OF FOR
@@ -568,21 +531,21 @@ private:
         {
             return LSystem::KEY_POP;
         }
-        
+
         //Possible extension of features
         if (c == "KEY_LEAF")
         {
-        return LSystem::KEY_LEAF;
+            return LSystem::KEY_LEAF;
         }
         if (c == "KEY_ROTATE")
         {
-        return LSystem::KEY_ROTATE;
+            return LSystem::KEY_ROTATE;
         }
         if (c == "KEY_CUSTOM")
         {
             return LSystem::KEY_CUSTOM;
         }
-        
+
         return LSystem::KEY_NULL;
     }
 
@@ -646,6 +609,285 @@ private:
 
 
 
+class DrawHelper2D: public LSystemVisualizer
+{
+public:
+
+    DrawHelper2D(): minRot_(0,0,20),maxRot_(0,0,20),dir_(0,1,0){
+    lineLength_=0.1f;
+    meshy_ = new octet::mesh();
+    }
+    void DrawLine() override
+    {
+        verticies_.push_back(myVertex(matrixStack_.back()[3].xyz(), 0xff + 255));
+        matrixStack_.back().translate((dir_*lineLength_).x(),
+            (dir_*lineLength_).y(),
+            (dir_*lineLength_).z());
+        verticies_.push_back(myVertex(matrixStack_.back()[3].xyz(), 0xff + 255));
+
+    }
+   void RotatePositive()override
+    {
+       matrixStack_.back().rotateZ(minRot_.z());
+    }
+    void RotateNegative()override
+    {
+        matrixStack_.back().rotateZ(-minRot_.z());
+    }
+    void PushStack()override
+    {
+        matrixStack_.push_back(matrixStack_.back());
+    }
+    void PopStack()override
+    {
+        matrixStack_.pop_back();
+    }
+    void Custom()override
+    {
+       
+    }
+    void SetState(LSystemState* state)override
+    {
+        matrixStack_.resize(0);
+        matrixStack_.push_back(octet::mat4t());
+    }
+
+    void Finished()override
+    {
+        
+        meshy_->allocate(sizeof(myVertex)* verticies_.size(), 0);
+        meshy_->set_params(sizeof(myVertex), 0, verticies_.size(), GL_LINES, 0);
+
+        meshy_->add_attribute(octet::attribute_pos, 3, GL_FLOAT, 0);
+        meshy_->add_attribute(octet::attribute_color, 4, GL_UNSIGNED_BYTE, 12, TRUE);
+
+        octet::gl_resource::wolock vl(meshy_->get_vertices());
+        myVertex* vtx = (myVertex*)vl.u8();
+
+        memcpy(vtx, verticies_.data(), sizeof(myVertex)*verticies_.size());
+    }
+
+
+    octet::mesh* GetMesh()
+    {
+        return meshy_;
+    }
+private:
+    struct myVertex
+    {
+        myVertex(octet::vec3 v, uint32_t col)
+        {
+            pos = v; color = col;
+        }
+        myVertex(){}
+        octet::vec3p pos;
+        uint32_t color;
+    };
+
+    octet::dynarray<myVertex> verticies_;
+
+    float lineLength_;
+    octet::vec3 minRot_;
+    octet::vec3 maxRot_;
+    octet::vec3 dir_;
+
+    int numVerticies_;
+
+    LSystemState* state_;
+
+    octet::dynarray<octet::mat4t> matrixStack_;
+    octet::vec3 direction_;
+
+    octet::mesh* meshy_;
+};
+
+#include "AngleConvert.h"
+
+#include<time.h>
+#include <random>
+class DrawHelper3D : public LSystemVisualizer
+{
+public:
+
+    DrawHelper3D() : minRot_(0, 0, 20), maxRot_(0, 0, 20), dir_(0, 1, 0){
+        sectionLength_ = 0.5f;
+        meshy_ = new octet::mesh();
+
+        srand(time(NULL));
+
+        float thickness = 0.4f;
+        int numVertexInBase = 8;
+        float angle = M_PI*2 / numVertexInBase;
+        cylinderBase_.reserve(numVertexInBase);
+        for (int i = 0; i < numVertexInBase; ++i)
+        {
+            cylinderBase_.push_back(myVertex(octet::vec3(
+                sin(angle*i)*thickness,
+                0,
+                cos(angle*i)*thickness)));
+            verticies_.push_back(cylinderBase_.back());
+        }
+        startPos_.push_back(0);
+
+    }
+    void DrawLine() override
+    {
+        octet::vec3 v = dir_*sectionLength_;
+        matrixStack_.back().translate(v.x(),v.y(),v.z());
+        octet::quat q = matrixStack_.back().toQuaternion();
+        for (int i = 0; i < cylinderBase_.size(); ++i)
+        {
+            verticies_.push_back(myVertex(matrixStack_.back()[3].xyz()+(cylinderBase_[i].pos*q)));
+        }
+        startPos_.back() = MakeIndecies(startPos_.back());
+    }
+    void RotatePositive()override
+    {
+        switch (rand()%3)
+        {
+        case 0:
+            matrixStack_.back().rotateZ(minRot_.z());
+            break;
+        case 1:
+            matrixStack_.back().rotateX(minRot_.z());
+            break;
+        case 2:
+            matrixStack_.back().rotateY(minRot_.z());
+            break;
+        }
+    }
+    void RotateNegative()override
+    {
+        switch (rand()%3)
+        {
+        case 0:
+            matrixStack_.back().rotateZ(-minRot_.z());
+            break;
+        case 1:
+            matrixStack_.back().rotateX(-minRot_.z());
+            break;
+        case 2:
+            matrixStack_.back().rotateY(-minRot_.z());
+            break;
+        }
+    }
+    void PushStack()override
+    {
+
+        startPos_.push_back(startPos_.back());
+        matrixStack_.push_back(matrixStack_.back());
+    }
+    void PopStack()override
+    {
+        startPos_.pop_back();
+        matrixStack_.pop_back();
+    }
+    void Custom()override
+    {
+
+    }
+    void SetState(LSystemState* state)override
+    {
+        matrixStack_.resize(0);
+        matrixStack_.push_back(octet::mat4t());
+    }
+
+    void Finished()override
+    {
+
+        meshy_->allocate(sizeof(myVertex)* verticies_.size(), sizeof(unsigned int)*indicies_.size());
+        meshy_->set_params(sizeof(myVertex), indicies_.size(), verticies_.size(),GL_TRIANGLES, GL_UNSIGNED_INT);
+
+        meshy_->add_attribute(octet::attribute_pos, 3, GL_FLOAT, 0);
+        meshy_->add_attribute(octet::attribute_normal, 3, GL_FLOAT, 12);
+        meshy_->add_attribute(octet::attribute_uv, 2, GL_FLOAT, 24);
+
+        octet::gl_resource::wolock vl(meshy_->get_vertices());
+        octet::gl_resource::wolock il(meshy_->get_indices());
+        myVertex* vtx = (myVertex*)vl.u8();
+        unsigned int * indx = (unsigned int*)il.u8();
+
+        memcpy(vtx, verticies_.data(), sizeof(myVertex)*verticies_.size());
+        memcpy(indx, indicies_.data(), sizeof(unsigned int)*indicies_.size());
+    }
+
+
+    octet::mesh* GetMesh()
+    {
+        return meshy_;
+    }
+private:
+
+    int MakeIndecies(int startSpace)
+    {
+        
+        int objectSize = cylinderBase_.size();
+        int targetSpace = verticies_.size()-objectSize;
+        for (int i = 0; i < objectSize; ++i)
+        {
+            /*
+                (ti)------(ti+1)
+                  |  \      |
+                  |    \    |
+                  |      \  |
+                  |        \|
+                 (si)=-----(si+1)
+            */
+
+            indicies_.push_back(i+startSpace);
+
+            indicies_.push_back(((i+1)%objectSize)+startSpace);
+
+            indicies_.push_back(i + targetSpace);
+
+            indicies_.push_back(i + targetSpace);
+
+            indicies_.push_back(((i + 1) % objectSize) + startSpace);
+
+            indicies_.push_back(((i + 1) % objectSize) + targetSpace);
+
+        }
+        return targetSpace;
+    }
+    struct myVertex
+    {
+        myVertex(octet::vec3 v)
+        {
+            pos = v; normal = v;
+        }
+        myVertex(){}
+        octet::vec3 pos;
+        octet::vec3 normal;
+        octet::vec2 uv;
+    };
+
+    octet::dynarray<myVertex> verticies_;
+    octet::dynarray<unsigned int> indicies_;
+    octet::dynarray<int> startPos_;
+
+
+    octet::dynarray<myVertex> cylinderBase_;
+
+    float sectionLength_;
+    octet::vec3 minRot_;
+    octet::vec3 maxRot_;
+    octet::vec3 dir_;
+
+    int numVerticies_;
+
+    LSystemState* state_;
+
+    octet::dynarray<octet::mat4t> matrixStack_;
+    octet::vec3 direction_;
+
+    octet::mesh* meshy_;
+};
+
+
+
+
+
+
 
 
 
@@ -658,8 +900,12 @@ namespace octet {
 
         LSystemImporter import;
         LSystem visi;
-        DrawHelper d;
+        DrawHelper2D d;
+        DrawHelper3D d2;
         const LSystemState* s;
+
+
+        mouse_ball camera;
     public:
         /// this is called when we construct the class before everything is initialised.
         LSystems(int argc, char **argv) : app(argc, argv) {
@@ -671,70 +917,19 @@ namespace octet {
             app_scene->create_default_camera_and_lights();
             app_scene->get_camera_instance(0)->set_far_plane(1000000000000);
             import.Load(&visi, "LSys.txt");
-            visi.SetVisualizer(&d);
-
-            struct myVertex{
-                myVertex(vec3 p, uint32_t c) :pos(p), color(c){}
-                vec3p pos;
-                uint32_t color;
-            };
-
-           
-
-            bool breakpoint = true;
+            
             visi.Iterate(9);
             s = visi.GetCurrentState();
-            breakpoint = true;
+            //visi.Visualize(&d);
+            visi.Visualize(&d2);
 
+            app_scene->get_light_instance(0)->get_light()->set_attenuation(0, 0.01f, 0);
 
-
-            mesh* meshy = new mesh();
-            meshy->allocate(sizeof(myVertex)* 1600000, 0);
-            meshy->set_params(sizeof(myVertex), 0, 1600000, GL_LINES, 0);
-
-            meshy->add_attribute(attribute_pos, 3, GL_FLOAT, 0);
-            meshy->add_attribute(attribute_color, 4, GL_UNSIGNED_BYTE, 12, TRUE);
-
-            gl_resource::wolock vl(meshy->get_vertices());
-            myVertex* vtx = (myVertex*)vl.u8();
-
-            vec4 dir(0, 0.1, 0, 0);
-            dynarray<mat4t> stack;
-            stack.push_back(mat4t());
-
-            for (int i = 0; i < s->state_.size(); ++i)
-            {
-                const char c = s->state_[i];
-                if (c == 'F')
-                {
-                    *vtx = myVertex(vec3(0, 0, -10) * stack.back(), 0xff + 255 << 0);//creates a vertex
-                    ++vtx;
-                    stack.back().translate(0, 0.1, 0);
-                    *vtx = myVertex(vec3(0, 0, -10) * stack.back(), 0xff + 255 << 0);
-                    ++vtx;
-                }
-                if (c == '+')
-                {
-                    stack.back().rotateZ(20);
-                }
-                if (c == '-')
-                {
-                    stack.back().rotateZ(-20);
-                }
-                if (c == '[')
-                {
-                    stack.push_back(stack.back());
-                }
-                if (c == ']')
-                {
-                    stack.pop_back();
-                }
-            }
-            glLineWidth(0.1);
-
-            param_shader* shader = new param_shader("shaders/default.vs", "shaders/simple_color.fs");
-            mesh_instance *inst = new mesh_instance(new scene_node(), meshy, new material(vec4(1, 0, 0, 1),
-                shader));
+            camera.init(this, 100, 100.0f);
+            
+            glLineWidth(0.1f);
+            ref<param_shader> sh = new param_shader("shaders/default.vs", "shaders/gradient.fs");
+            mesh_instance *inst = new mesh_instance(new scene_node(), d2.GetMesh(), new material(vec4(1, 0, 0, 1),sh));
             app_scene->add_mesh_instance(inst);
         }
 
@@ -744,36 +939,44 @@ namespace octet {
             get_viewport_size(vx, vy);
             app_scene->begin_render(vx, vy);
 
+
+            camera.update(app_scene->get_camera_instance(0)->get_node()->access_nodeToParent());
             // update matrices. assume 30 fps.
             app_scene->update(1.0f / 30);
 
+
+            
             // draw the scene
             app_scene->render((float)vx / vy);
 
+
+
+
             if (is_key_down('W'))
             {
-                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, 0, -1));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, 4, 0));
             }
             if (is_key_down('D'))
             {
-                app_scene->get_camera_instance(0)->get_node()->translate(vec3(1, 0, 0));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(4, 0, 0));
             }
             if (is_key_down('A'))
             {
-                app_scene->get_camera_instance(0)->get_node()->translate(vec3(-1, 0, 0));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(-4, 0, 0));
             }
             if (is_key_down('S'))
             {
-                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, 0, 1));
-            }
-            if (is_key_down('E'))
-            {
-                app_scene->get_camera_instance(0)->get_node()->rotate(0.4f, vec3(1, 0, 0));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, -4, 0));
             }
             if (is_key_down('Q'))
             {
-                app_scene->get_camera_instance(0)->get_node()->rotate(-0.4f, vec3(1, 0, 0));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, 0,4 ));
             }
+            if (is_key_down('E'))
+            {
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, 0, -4));
+            }
+
 
         }
     };

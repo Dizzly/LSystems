@@ -1,0 +1,14 @@
+
+
+Axiom{
+X;
+}
+
+Alphabet{
+F,X;
+}
+
+Rules{
+X=F[+X][-X]FX;
+F=FF;
+}

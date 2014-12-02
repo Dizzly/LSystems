@@ -2,19 +2,18 @@
 
 
 Alphabet{
-F,X;
+F;
 }
 
 Rules
 {
-X=F-[[X]+X]+F[+FX]-X;
-F=FF;
+F=+FF;
 }
 
 
 
 Axiom{
-X;
+F;
 }
 
 
