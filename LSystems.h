@@ -44,12 +44,62 @@ public:
     static void* userPointer;
 };
 
-class LSystemDrawInfo{}
+struct LSystemDrawInfo{
+public:
+    LSystemDrawInfo() :sectionLength(0),
+        sectionLengthReduction(0),
+        sectionWidth(0),
+        sectionWidthReduction(0),
+        minXRot(0),
+        maxXRot(0),
+        minYRot(0),
+        maxYRot(0),
+        minZRot(0),
+        maxZRot(0),
+        randomize(false)
+    {
+
+    }
+    void Combine(LSystemDrawInfo* di)
+    {
+        if (di->sectionLength)sectionLength = di->sectionLength;
+        if (di->sectionLengthReduction)sectionLengthReduction = di->sectionLengthReduction;
+        if (di->sectionWidth)sectionWidth = di->sectionWidth;
+        if (di->sectionWidthReduction)sectionWidthReduction = di->sectionWidthReduction;
+
+        if (di->minXRot)minXRot = di->minXRot;
+        if (di->minYRot)minYRot = di->minYRot;
+        if (di->minZRot)minZRot = di->minZRot;
+
+        if (di->maxXRot)maxXRot = di->maxXRot;
+        if (di->maxYRot)maxYRot = di->maxYRot;
+        if (di->maxZRot)maxZRot = di->maxZRot;
+
+        if (di->randomize)randomize = di->randomize;
+    }
+    float sectionLength;
+    float sectionLengthReduction;
+
+    float sectionWidth;
+    float sectionWidthReduction;
+
+    float minXRot;
+    float minYRot;
+    float minZRot;
+
+    float maxXRot;
+    float maxYRot;
+    float maxZRot;
+
+    bool randomize;
+private:
+};
 
 //an abstract base class for creation of a intergrated graphics tool, not necessary
 class LSystemVisualizer
 {
 public:
+    virtual void Init(LSystemDrawInfo* info) = 0{};
     virtual void DrawLine() = 0{};
 
     virtual void RotatePositive() = 0{};
@@ -85,11 +135,11 @@ public:
         KEY_MAX
     };
 
-    
+
     typedef void(*VarFunc)(LSystemState*);
 public:
-    LSystem(){}
-    ~LSystem(){}
+    LSystem():info_(NULL){}
+    ~LSystem(){ delete(info_); }
 
     void Iterate(int n)
     {
@@ -102,7 +152,7 @@ public:
     {
         assert(stateVec_.size()>0);
         stateVec_.push_back(new LSystemState(stateVec_.back()));
-        stateVec_.back()->level = stateVec_.size();
+        stateVec_.back()->level = stateVec_.size()-1;
         const LSystemState* prevState = stateVec_.back()->prevState;
         assert(prevState->state_.size() > 0);
         for (int i = 0; i < prevState->state_.size(); ++i)
@@ -133,11 +183,12 @@ public:
     void Visualize(LSystemVisualizer* viz){
         if (viz)
         {
-            LSystemState* state=stateVec_.back();
+            LSystemState* state = stateVec_.back();
             viz->SetState(state);
+            info_ ? viz->Init(info_) : viz->Init(NULL);
             for (int i = 0; i < state->state_.size(); ++i)
             {
-                CallKey(referenceMap_[state->state_[i]].key,viz);
+                CallKey(referenceMap_[state->state_[i]].key, viz);
             }
             viz->Finished();
         }
@@ -150,7 +201,6 @@ public:
 
     void SetAxiom(const char* c, int size)
     {
-        assert(stateVec_.size() == 0);
         if (stateVec_.size() == 0)
         {
             axiom_.resize(size);
@@ -166,7 +216,7 @@ public:
         referenceMap_[c].str = str;
     }
 
-    void SetKeyDecl(char c,KEY_SYMBOLS k)
+    void SetKeyDecl(char c, KEY_SYMBOLS k)
     {
         referenceMap_[c].key = k;
     }
@@ -174,6 +224,15 @@ public:
     void AddRuleFunction(char c, VarFunc func)
     {
         referenceMap_[c].func = func;
+    }
+
+    void SetDrawInfo(LSystemDrawInfo* info)
+    {
+        info_ = info;
+    }
+
+    LSystemDrawInfo* GetDrawInfo(){
+        return info_;
     }
 
     const LSystemState* GetCurrentState()
@@ -253,6 +312,7 @@ private:
     }
 
 private:
+    LSystemDrawInfo* info_;
 
     octet::dynarray<LSystemState*> stateVec_;
     octet::hash_map<char, SymbolRef> referenceMap_;
@@ -269,11 +329,11 @@ public:
     LSystemImporter(){}
     ~LSystemImporter(){}
 
-    bool Load(LSystem* lSys, const octet::string& filename)
+    bool Load(LSystem* lSys, const char* filename)
     {
         std::fstream file;
 
-        file.open(filename.c_str(), std::ios::in);
+        file.open(filename, std::ios::in);
         if (!file.is_open())
         {
             assert(0);
@@ -297,6 +357,11 @@ public:
         if (!check)return false;
         check = LoadRules(lSys, str);
         if (!check)return false;
+        check = LoadDrawInfo(lSys, str);
+        if (!check) return false;
+
+        read_.resize(0);
+        tempAlphabet_.resize(0);
 
         return true;
     }
@@ -495,6 +560,50 @@ private:
         }//END OF FOR
         return true;
     }
+
+    bool LoadDrawInfo(LSystem* lSys, octet::string& str)
+    {
+        int startPos = str.find("DrawInfo");
+        if (startPos == -1)
+        {
+            return true;
+        }
+        startPos += 9; //size of "DrawInfo{"
+        int endPos = FindSymbolAfter('}', startPos);
+
+        if (endPos == -1)
+        {
+            printf("%s", "No close brackets after DrawInfo section");
+            assert(false);
+            return false;
+        }
+
+        float arr[sizeof(LSystemDrawInfo) / sizeof(float)] = { 0 };
+        int counter = 0;
+        for (int i = startPos; i < endPos; ++i)
+        {
+            int equals = FindSymbolAfter('=', i);
+            int eol = FindSymbolAfter(';',equals);
+            if (eol>endPos)
+            {
+                printf("%s", "No semicolon after statement");
+                assert(false);
+                return false;
+            }
+            octet::string value(&read_[i], equals - i);
+            octet::string key(&read_[equals + 1], (eol - equals)-1);
+            arr[InfoLocFromString(key)] = atof(value);
+            i = eol;
+            counter++;
+        }
+        if (counter > 0)
+        {
+            LSystemDrawInfo* info = new LSystemDrawInfo();
+            memcpy(info, arr, sizeof(info)*sizeof(float));
+            lSys->SetDrawInfo(info);
+        }
+    
+    }
 private:
     //lineraly searches for the next instance of a symbol after a current point
     int FindSymbolAfter(char symbol, int loc)
@@ -547,6 +656,50 @@ private:
         }
 
         return LSystem::KEY_NULL;
+    }
+
+    static int InfoLocFromString(const octet::string& c)
+    {
+        if (c == "LENGTH")
+        {
+            return 0;
+        }
+        if (c == "LENGTH_REDUCTION")
+        {
+            return 1;
+        }
+        if (c == "WIDTH")
+        {
+            return 2;
+        }
+        if (c == "WIDTH_REDUCTION")
+        {
+            return 3;
+        }
+        if (c == "MIN_ROT_X")
+        {
+            return 4;
+        }
+        if (c == "MAX_ROT_X")
+        {
+            return 7;
+        }
+        if (c == "MIN_ROT_Y")
+        {
+            return 5;
+        }
+        if (c== "MAX_ROT_Y")
+        {
+            return 8;
+        }
+        if (c == "MIN_ROT_Z")
+        {  
+            return 6;
+        }
+        if (c == "MAX_ROT_Z")
+        {
+            return 9;
+        }
     }
 
     //cheks to see if that char is grammer
@@ -613,9 +766,21 @@ class DrawHelper2D: public LSystemVisualizer
 {
 public:
 
-    DrawHelper2D(): minRot_(0,0,20),maxRot_(0,0,20),dir_(0,1,0){
+    DrawHelper2D():dir_(0,1,0){
+        maxRot_ = 0;
+        minRot_ = 0;
     lineLength_=0.1f;
     meshy_ = new octet::mesh();
+    }
+
+    void Init(LSystemDrawInfo* info)override
+    {
+        if (info)
+        {
+            if(info->sectionLength)lineLength_ = info->sectionLength;
+            if (info->minZRot)minRot_ = info->minZRot;
+            if (info->maxZRot)maxRot_ = info->maxZRot;
+        }
     }
     void DrawLine() override
     {
@@ -628,11 +793,11 @@ public:
     }
    void RotatePositive()override
     {
-       matrixStack_.back().rotateZ(minRot_.z());
+       matrixStack_.back().rotateZ(minRot_);
     }
     void RotateNegative()override
     {
-        matrixStack_.back().rotateZ(-minRot_.z());
+        matrixStack_.back().rotateZ(-minRot_);
     }
     void PushStack()override
     {
@@ -658,6 +823,7 @@ public:
         meshy_->allocate(sizeof(myVertex)* verticies_.size(), 0);
         meshy_->set_params(sizeof(myVertex), 0, verticies_.size(), GL_LINES, 0);
 
+        meshy_->clear_attributes();
         meshy_->add_attribute(octet::attribute_pos, 3, GL_FLOAT, 0);
         meshy_->add_attribute(octet::attribute_color, 4, GL_UNSIGNED_BYTE, 12, TRUE);
 
@@ -665,6 +831,7 @@ public:
         myVertex* vtx = (myVertex*)vl.u8();
 
         memcpy(vtx, verticies_.data(), sizeof(myVertex)*verticies_.size());
+        verticies_.resize(0);
     }
 
 
@@ -687,8 +854,8 @@ private:
     octet::dynarray<myVertex> verticies_;
 
     float lineLength_;
-    octet::vec3 minRot_;
-    octet::vec3 maxRot_;
+    float minRot_;
+    float maxRot_;
     octet::vec3 dir_;
 
     int numVerticies_;
@@ -698,7 +865,7 @@ private:
     octet::dynarray<octet::mat4t> matrixStack_;
     octet::vec3 direction_;
 
-    octet::mesh* meshy_;
+    octet::ref<octet::mesh> meshy_;
 };
 
 #include "AngleConvert.h"
@@ -708,67 +875,118 @@ private:
 class DrawHelper3D : public LSystemVisualizer
 {
 public:
-
-    DrawHelper3D() : minRot_(0, 0, 20), maxRot_(0, 0, 20), dir_(0, 1, 0){
+    DrawHelper3D(int vertexNum) : minRot_(20,20,20),maxRot_(0,0,0), dir_(0, 1, 0),
+    randomize_(true){
+        thickness_ = 0.5f;
+        thicknessReduction_ = 0;
         sectionLength_ = 0.5f;
         meshy_ = new octet::mesh();
-
+        cylinderBase_.resize(vertexNum);
         srand(time(NULL));
-
-        float thickness = 0.4f;
-        int numVertexInBase = 8;
-        float angle = M_PI*2 / numVertexInBase;
-        cylinderBase_.reserve(numVertexInBase);
-        for (int i = 0; i < numVertexInBase; ++i)
+    }
+    void Init(LSystemDrawInfo* info)  override
+    {
+        float oldThick = thickness_;
+        if (info)
         {
-            cylinderBase_.push_back(myVertex(octet::vec3(
-                sin(angle*i)*thickness,
-                0,
-                cos(angle*i)*thickness)));
-            verticies_.push_back(cylinderBase_.back());
+            if (info->sectionWidth) thickness_ = info->sectionWidth;
+            if (info->sectionWidthReduction) thicknessReduction_ = info->sectionWidthReduction;
+            if (info->sectionLength)sectionLength_ = info->sectionLength;
+            if (info->minXRot || info->minYRot || info->minZRot)
+            {
+                minRot_ = octet::vec3(info->minXRot, info->minYRot, info->minZRot);
+            }
+            if (info->maxXRot || info->maxYRot || info->maxZRot) maxRot_ = octet::vec3(info->maxXRot, info->maxYRot, info->maxZRot);
+            randomize_ = info->randomize;
         }
-        startPos_.push_back(0);
-
+        if (startPos_.size() == 0)
+        {
+            float angle = M_PI * 2 / cylinderBase_.size();
+            for (int i = 0; i < cylinderBase_.size(); ++i)
+            {
+                cylinderBase_[i] = myVertex(octet::vec3(
+                    sinf(angle*i)*thickness_,
+                    0,
+                    cosf(angle*i)*thickness_));
+                verticies_.push_back(cylinderBase_.back());
+            }
+            startPos_.push_back(0);
+        }
+        else if (thickness_ != oldThick)
+        {
+            for (int i = 0; i < cylinderBase_.size(); ++i)
+            {
+                cylinderBase_[i].pos = cylinderBase_[i].pos.normalize();
+                cylinderBase_[i].pos *= thickness_;
+            }
+        }
     }
     void DrawLine() override
     {
         octet::vec3 v = dir_*sectionLength_;
-        matrixStack_.back().translate(v.x(),v.y(),v.z());
-        octet::quat q = matrixStack_.back().toQuaternion();
+        matrixStack_.back().translate(v.x(), v.y(), v.z());
         for (int i = 0; i < cylinderBase_.size(); ++i)
         {
-            verticies_.push_back(myVertex(matrixStack_.back()[3].xyz()+(cylinderBase_[i].pos*q)));
+            verticies_.push_back(myVertex(matrixStack_.back()[3].xyz()+(cylinderBase_[i].pos*matrixStack_.back())));
         }
         startPos_.back() = MakeIndecies(startPos_.back());
     }
     void RotatePositive()override
     {
-        switch (rand()%3)
+        
+        if (randomize_)
         {
-        case 0:
+            float r = (float)rand() / RAND_MAX;
+            switch (rand() % 3)
+            {
+            case 0:
+                matrixStack_.back().rotateZ(minRot_.z() + max(maxRot_.z() - minRot_.z()*r,
+                    0));
+                break;
+            case 1:
+                matrixStack_.back().rotateX(minRot_.x() + max(maxRot_.x() - minRot_.x()*r,
+                    0));
+                break;
+            case 2:
+                matrixStack_.back().rotateY(minRot_.y() + max(maxRot_.y() - minRot_.y()*r,
+                    0));
+                break;
+            }
+        }
+        else
+        {
+            
             matrixStack_.back().rotateZ(minRot_.z());
-            break;
-        case 1:
-            matrixStack_.back().rotateX(minRot_.z());
-            break;
-        case 2:
-            matrixStack_.back().rotateY(minRot_.z());
-            break;
+            matrixStack_.back().rotateX(minRot_.x());
+            matrixStack_.back().rotateY(minRot_.y());
         }
     }
     void RotateNegative()override
     {
-        switch (rand()%3)
+        if (randomize_)
         {
-        case 0:
+            float r = (float)rand() / RAND_MAX;
+            switch (rand() % 3)
+            {
+            case 0:
+                matrixStack_.back().rotateZ(-(minRot_.z() + max(maxRot_.z() - minRot_.z()*r,
+                    0)));
+                break;
+            case 1:
+                matrixStack_.back().rotateX(-(minRot_.x() + max(maxRot_.x() - minRot_.x()*r,
+                    0)));
+                break;
+            case 2:
+                matrixStack_.back().rotateY(-(minRot_.y() + max(maxRot_.y() - minRot_.y()*r,
+                    0)));
+                break;
+            }
+        }
+        else
+        {
             matrixStack_.back().rotateZ(-minRot_.z());
-            break;
-        case 1:
-            matrixStack_.back().rotateX(-minRot_.z());
-            break;
-        case 2:
-            matrixStack_.back().rotateY(-minRot_.z());
-            break;
+            matrixStack_.back().rotateX(-minRot_.x());
+            matrixStack_.back().rotateY(-minRot_.y());
         }
     }
     void PushStack()override
@@ -794,10 +1012,10 @@ public:
 
     void Finished()override
     {
-
         meshy_->allocate(sizeof(myVertex)* verticies_.size(), sizeof(unsigned int)*indicies_.size());
         meshy_->set_params(sizeof(myVertex), indicies_.size(), verticies_.size(),GL_TRIANGLES, GL_UNSIGNED_INT);
 
+        meshy_->clear_attributes();
         meshy_->add_attribute(octet::attribute_pos, 3, GL_FLOAT, 0);
         meshy_->add_attribute(octet::attribute_normal, 3, GL_FLOAT, 12);
         meshy_->add_attribute(octet::attribute_uv, 2, GL_FLOAT, 24);
@@ -809,6 +1027,9 @@ public:
 
         memcpy(vtx, verticies_.data(), sizeof(myVertex)*verticies_.size());
         memcpy(indx, indicies_.data(), sizeof(unsigned int)*indicies_.size());
+        verticies_.resize(0);
+        indicies_.resize(0);
+        startPos_.back() = 0;
     }
 
 
@@ -818,9 +1039,10 @@ public:
     }
 private:
 
+    float max(float a, float b){return a > b ? a : b; }
+
     int MakeIndecies(int startSpace)
     {
-        
         int objectSize = cylinderBase_.size();
         int targetSpace = verticies_.size()-objectSize;
         for (int i = 0; i < objectSize; ++i)
@@ -869,22 +1091,20 @@ private:
     octet::dynarray<myVertex> cylinderBase_;
 
     float sectionLength_;
+    float thickness_;
+
+    float thicknessReduction_;
+
     octet::vec3 minRot_;
     octet::vec3 maxRot_;
     octet::vec3 dir_;
 
-    int numVerticies_;
-
-    LSystemState* state_;
+    bool randomize_;
 
     octet::dynarray<octet::mat4t> matrixStack_;
-    octet::vec3 direction_;
 
-    octet::mesh* meshy_;
+    octet::ref<octet::mesh> meshy_;
 };
-
-
-
 
 
 
@@ -898,38 +1118,175 @@ namespace octet {
         ref<visual_scene> app_scene;
 
 
-        LSystemImporter import;
-        LSystem visi;
-        DrawHelper2D d;
-        DrawHelper3D d2;
-        const LSystemState* s;
+        LSystemImporter import_;
+        dynarray<LSystem> lSys_;
+        DrawHelper2D draw2D_;
+        DrawHelper3D draw3D_;
+        const LSystemState* s_;
+        LSystemDrawInfo drawInfo_;
 
 
+        TwBar* bar_;
         mouse_ball camera;
+        float speed_;
+
+        dynarray<std::string> files_;
+
+        int oldFile_;
+        int fileChoice_;
+        
+        int numIterations_;
+
+        bool lmbPressed_;
+        
+        bool is3D_;
+        static bool regenerate_;
+        static bool reload_;
     public:
         /// this is called when we construct the class before everything is initialised.
-        LSystems(int argc, char **argv) : app(argc, argv) {
+        LSystems(int argc, char **argv) : app(argc, argv), draw3D_(5), is3D_(true),fileChoice_(0),oldFile_(0),numIterations_(6) {
+            lmbPressed_ = false;
+            speed_ = 4;
         }
 
+
+        static void TW_CALL Generate(void * c)
+        {
+            regenerate_ = true;
+        }
+
+        static void TW_CALL ChangeFile(void* c)
+        {
+            reload_ = true;
+        }
         /// this is called once OpenGL is initialized
         void app_init() {
             app_scene = new visual_scene();
             app_scene->create_default_camera_and_lights();
             app_scene->get_camera_instance(0)->set_far_plane(1000000000000);
-            import.Load(&visi, "LSys.txt");
-            
-            visi.Iterate(9);
-            s = visi.GetCurrentState();
-            //visi.Visualize(&d);
-            visi.Visualize(&d2);
+
+            drawInfo_.sectionLength = 0.5f;
+            drawInfo_.sectionWidth = 0.5f;
+
+            drawInfo_.minZRot = 20.0f;
+
+            TwInit(TW_OPENGL, NULL);
+            TwWindowSize(768, 768 - 35);
+
+            bar_ = TwNewBar("TweakBar");
+
+            TwAddVarRW(bar_, "Section length", TW_TYPE_FLOAT, &drawInfo_.sectionLength,
+                "Min=0.00001 Max=8000 Step='0.02' Help='Length of lines drawn'");
+
+            TwAddVarRW(bar_, "Section width", TW_TYPE_FLOAT, &drawInfo_.sectionWidth,
+                "Min=0.01 Max=50 Step='0.02' Help='Thickness of 3D objects, only works on 3D'");
+
+
+            TwAddVarRW(bar_, "Number of Iterations", TW_TYPE_INT16, &numIterations_, "Help='Number of iterations note that when this becomes to high loading times may be slow'");
+
+            TwAddVarRW(bar_, "3D", TW_TYPE_BOOLCPP, &is3D_, "Help='Switches between 2D and 3D drawing'");
+
+            TwAddSeparator(bar_, "Rotation", "");
+
+            TwAddVarRW(bar_, "Min X rotation", TW_TYPE_FLOAT, &drawInfo_.minXRot,
+                "Step=0.1f Help='Helps for random variation of X rotation'");
+
+            TwAddVarRW(bar_, "Min Y rotation", TW_TYPE_FLOAT, &drawInfo_.minYRot,
+                "Step=0.1f Help='Helps for random variation of Y rotation'");
+
+            TwAddVarRW(bar_, "Min Z rotation", TW_TYPE_FLOAT, &drawInfo_.minZRot,
+                "Step=0.1f Help='Helps for random variation of Z rotation'");
+
+
+            TwAddVarRW(bar_, "Max X rotation", TW_TYPE_FLOAT, &drawInfo_.maxXRot,
+                "Step=0.1f Help='If this is lower or the same then the min, then only the min is used'");
+
+            TwAddVarRW(bar_, "Max Y rotation", TW_TYPE_FLOAT, &drawInfo_.maxYRot,
+                "Step=0.1f Help='If this is lower or the same then the min, then only the min is used'");
+
+            TwAddVarRW(bar_, "Max Z rotation", TW_TYPE_FLOAT, &drawInfo_.maxZRot,
+                "Step=0.1f Help='If this is lower or the same then the min, then only the min is used'");
+
+            TwAddVarRW(bar_, "Randomize Drawing", TW_TYPE_BOOLCPP, &drawInfo_.randomize,
+                "Help='Enables or disables the randomization of angles, without the minimum angle will always be chosen'");
+
+            TwAddSeparator(bar_, "Buttons", "");
+
+            TwAddButton(bar_, "Generate", Generate, NULL, "");
+
+            const int num = 8;
+            TwEnumVal presets[num] =
+            {
+                { 0, "Tree1" },
+                { 1, "Tree2" },
+                { 2, "Tree3" },
+                { 3, "Tree4" },
+                { 4, "Tree5" },
+                { 5, "Tree6" },
+                //put in the two extra
+
+                { 6, "Custom1" },
+                { 7, "Custom2" },
+            };
+
+            files_.resize(num);
+            lSys_.resize(num);
+
+            TwType eNum = TwDefineEnum("Presets", presets, num);
+
+            TwAddVarRW(bar_, "Tree presets", eNum, &fileChoice_,
+                "Help='A switch for some preset LSystems use custom and the filename field to load your own'");           
 
             app_scene->get_light_instance(0)->get_light()->set_attenuation(0, 0.01f, 0);
 
-            camera.init(this, 100, 100.0f);
+
+            files_[0]="Tree1.txt";
+            files_[1]="Tree2.txt";
+            files_[2]="Tree3.txt";
+            files_[3] = "Tree4.txt";
+            files_[4] = "Tree5.txt";
+            files_[5] = "Tree6.txt";
+
+            files_[6] = "Triangle.txt";
+            files_[7] = "Dragon.txt";
+
+
+            for (int i = 0; i < files_.size(); ++i)
+            {
+                import_.Load(&lSys_[i], files_[i].c_str());
+                if (lSys_[i].GetDrawInfo())
+                {
+                    drawInfo_.Combine(lSys_[i].GetDrawInfo());
+                    *lSys_[i].GetDrawInfo() = drawInfo_;
+                }
+                else
+                {
+                    lSys_[i].SetDrawInfo(new LSystemDrawInfo());
+                    memcpy(lSys_[i].GetDrawInfo(), &drawInfo_, sizeof(drawInfo_));
+                }
+                lSys_[i].Iterate(numIterations_);
+            }
             
-            glLineWidth(0.1f);
+            //visi.Visualize(&draw3D);
+            mesh_instance *inst;
             ref<param_shader> sh = new param_shader("shaders/default.vs", "shaders/gradient.fs");
-            mesh_instance *inst = new mesh_instance(new scene_node(), d2.GetMesh(), new material(vec4(1, 0, 0, 1),sh));
+            if (is3D_)
+            {
+                lSys_[0].Visualize(&draw3D_);
+                inst = new mesh_instance(new scene_node(), draw3D_.GetMesh(), new material(vec4(1, 0, 0, 1), sh));
+                drawInfo_ = *lSys_[0].GetDrawInfo();
+            }
+            else
+            {
+                lSys_[0].Visualize(&draw2D_);
+                inst = new mesh_instance(new scene_node(), draw2D_.GetMesh(), new material(vec4(1, 0, 0, 1), sh));
+                drawInfo_ = *lSys_[0].GetDrawInfo();
+            }
+
+            camera.init(this, 1000, 100.0f);
+            
+            glLineWidth(1.0f);
+            
             app_scene->add_mesh_instance(inst);
         }
 
@@ -939,45 +1296,116 @@ namespace octet {
             get_viewport_size(vx, vy);
             app_scene->begin_render(vx, vy);
 
+            if (reload_)
+            {
+                reload_ = false;
+                
+                regenerate_ = true;
+            }
 
+            if (regenerate_)
+            {
+                if (oldFile_ != fileChoice_)
+                {
+                    drawInfo_ = *lSys_[fileChoice_].GetDrawInfo();
+                    oldFile_ = fileChoice_;
+                }
+                else
+                {
+                   
+                    *lSys_[fileChoice_].GetDrawInfo() = drawInfo_;
+                }
+                s_ = lSys_[fileChoice_].GetCurrentState();
+                if (s_->level > numIterations_)
+                {
+                    lSys_[fileChoice_].Decrement(s_->level - numIterations_);
+                }
+                if (s_->level < numIterations_)
+                {
+                    lSys_[fileChoice_].Iterate(numIterations_ - s_->level);
+                }
+                regenerate_ = false;
+                if (is3D_)
+                {
+                    lSys_[fileChoice_].Visualize(&draw3D_);
+                    app_scene->get_mesh_instance(0)->set_mesh(draw3D_.GetMesh());
+                }
+                else
+                {
+                    lSys_[fileChoice_].Visualize(&draw2D_);
+                    app_scene->get_mesh_instance(0)->set_mesh(draw2D_.GetMesh());
+                }
+            }
             camera.update(app_scene->get_camera_instance(0)->get_node()->access_nodeToParent());
             // update matrices. assume 30 fps.
             app_scene->update(1.0f / 30);
+            int mX=  0;
+            int mY = 0;
+            get_mouse_pos(mX, mY);
+            TwMouseMotion(mX, mY);
 
+            if (is_key_down(key_lmb)&&!lmbPressed_)
+            {
+                TwMouseButton(TW_MOUSE_PRESSED,TW_MOUSE_LEFT);
+                lmbPressed_ = true;
+            }
+            else
+            {
+                lmbPressed_ = false;
+                TwMouseButton(TW_MOUSE_RELEASED, TW_MOUSE_LEFT);
+            }
 
-            
+         
             // draw the scene
             app_scene->render((float)vx / vy);
 
 
-
+            if (is_key_down(key_shift))
+            {
+                speed_ = 200;
+            }
+            else
+            {
+                speed_ = 4;
+            }
 
             if (is_key_down('W'))
             {
-                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, 4, 0));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, speed_, 0));
             }
             if (is_key_down('D'))
             {
-                app_scene->get_camera_instance(0)->get_node()->translate(vec3(4, 0, 0));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(speed_, 0, 0));
             }
             if (is_key_down('A'))
             {
-                app_scene->get_camera_instance(0)->get_node()->translate(vec3(-4, 0, 0));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(-speed_, 0, 0));
             }
             if (is_key_down('S'))
             {
-                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, -4, 0));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, -speed_, 0));
             }
             if (is_key_down('Q'))
             {
-                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, 0,4 ));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, 0,speed_ ));
             }
             if (is_key_down('E'))
             {
-                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, 0, -4));
+                app_scene->get_camera_instance(0)->get_node()->translate(vec3(0, 0, -speed_));
             }
-
-
+    
+            if (is_key_down(' '))
+            {
+                FILE* f = fopen("NEWFILE.txt", "w");
+                if (f)
+                {
+                    draw3D_.GetMesh()->dump(f);
+                }
+                fclose(f);
+            }
+            TwDraw();
         }
     };
+    bool LSystems::regenerate_ = false;
+    bool LSystems::reload_ = false;
 }

@@ -1,0 +1,17 @@
+
+
+DrawInfo{
+25.7=MIN_ROT_Z;
+}
+
+Alphabet{
+F;
+}
+
+Rules{
+F=F[+F]F[-F]F;
+}
+
+Axiom{
+F;
+}

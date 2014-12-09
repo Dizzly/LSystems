@@ -1,7 +1,7 @@
 
 
-Axiom{
-X;
+DrawInfo{
+25.7=MIN_ROT_Z;
 }
 
 Alphabet{
@@ -11,4 +11,8 @@ F,X;
 Rules{
 X=F[+X][-X]FX;
 F=FF;
+}
+
+Axiom{
+X;
 }

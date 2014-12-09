@@ -7,9 +7,12 @@
 // Text overlay
 //
 
+#include <AntTweakBar\AntTweakBar.h>
+#define ANT_TWEAK_BAR
 #include "../../octet.h"
 
 #include "LSystems.h"
+
 
 /// Create a box with octet
 int main(int argc, char **argv) {
@@ -18,7 +21,7 @@ int main(int argc, char **argv) {
 
   // our application.
   octet::LSystems app(argc, argv);
-  app.init(1920,1080);
+  app.init();
 
   // open windows
   octet::app::run_all_apps();

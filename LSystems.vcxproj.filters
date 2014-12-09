@@ -9,9 +9,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="platform">
-      <UniqueIdentifier>{dda91860-e541-4fdb-a790-f6b5e7902ffb}</UniqueIdentifier>
-    </Filter>
     <Filter Include="scene">
       <UniqueIdentifier>{1280c880-8181-435f-8975-ff6ac07df6ad}</UniqueIdentifier>
     </Filter>
@@ -32,6 +29,9 @@
     </Filter>
     <Filter Include="shaders">
       <UniqueIdentifier>{22786083-47af-48b2-98c4-2963f667bc44}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\platform">
+      <UniqueIdentifier>{dda91860-e541-4fdb-a790-f6b5e7902ffb}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -122,100 +122,100 @@
       <Filter>math</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\AL\al.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\AL\alc.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\AL\efx-creative.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\AL\EFX-Util.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\AL\efx.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\AL\xram.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\al_defs.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\app_common.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\args_parser.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\CL\cl.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\CL\cl_d3d10_ext.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\CL\cl_d3d11_ext.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\CL\cl_d3d9_ext.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\CL\cl_ext.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\CL\cl_gl.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\CL\cl_gl_ext.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\CL\cl_platform.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\CL\opencl.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\configure.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\direct_show.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\generic.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\GL\freeglut.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\GL\freeglut_ext.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\GL\freeglut_std.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\GL\glut.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\glut_specific.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\gl_defs.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\gl_skeleton.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\machine_specific.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\opencl.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\video_capture.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\platform\windows_specific.h">
-      <Filter>platform</Filter>
+      <Filter>Resource Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\resources\app_utils.h">
       <Filter>resources</Filter>
