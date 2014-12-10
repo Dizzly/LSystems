@@ -347,6 +347,8 @@ public:
         file.read(read_.data(), length);
         CleanWhiteSpace();
 
+        file.close();
+
         octet::string str(read_.data(), read_.size());
         bool check = false;
         check = LoadKeyDeclerations(lSys, str);
